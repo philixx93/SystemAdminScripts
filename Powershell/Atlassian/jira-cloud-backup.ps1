@@ -66,6 +66,7 @@
     .LINK
         Github: https://github.com/philixx93/SystemAdminScripts/tree/main
         How to create an API token: https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/
+        Forked from the Atlassian Scripts: https://bitbucket.org/atlassianlabs/automatic-cloud-backup/src/master/
 
     .NOTES
         I developed this script to work with Veeam. If you happen to fin any issues, please
