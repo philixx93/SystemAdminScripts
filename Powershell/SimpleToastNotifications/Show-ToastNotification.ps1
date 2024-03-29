@@ -41,6 +41,7 @@
 
     .LINK
         Github: https://github.com/philixx93/SystemAdminScripts/tree/main
+	Forked from spyingwind on Reddit: https://www.reddit.com/r/PowerShell/comments/zsr17a/ps_script_to_use_toast_or_other_notifications_to/
 
     .NOTES
         This script only runs on PowerShell 5.
