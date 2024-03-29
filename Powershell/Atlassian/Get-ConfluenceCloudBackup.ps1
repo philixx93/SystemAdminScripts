@@ -25,8 +25,9 @@
         Logon email address associated with the API token.
 
     .PARAMETER DownloadAttachments
-        Whether or not to download attachments. Default is true. Note that as of writing 
-        this script you can only create a with attachments every 24 hours.
+        Whether or not to download attachments. Note that as of writing this script you can 
+        only create a with attachments every 24 hours.
+        See: https://jira.atlassian.com/browse/CLOUD-6617
 
     .PARAMETER OutputDirectory
         The directory where the backup will be saved. Default is the current directory.
@@ -77,25 +78,27 @@
         only downgrades about once per week (instead of every second day). If you have a 
         better idea, please let me know.
 #>
+
+#Requires -Version 7
+
 Param(
     [Parameter(Mandatory=$True)]
     [string]$ApiTokenFile,
     [Parameter(Mandatory=$True)]
     [string]$email,
-    [ValidateSet('true', 'false')]
-    [string]$DownloadAttachments = 'true',
-    [string]$OutputDirectory = $(pwd),
+    [switch]$DownloadAttachments,
+    [string]$OutputDirectory = $(Get-Location),
     [Parameter(Mandatory=$True)]
     [string]$Domain,
     [int]$WaitMinutes = 10,
-    [bool]$DebugEnable = $false,
-    [bool]$TranscriptEnable = $false
+    [switch]$DebugEnable,
+    [switch]$TranscriptEnable
 )
 
-if($DebugEnable -or $TranscriptEnable){
+if($DebugEnable.IsPresent -or $TranscriptEnable.IsPresent){
     Start-Transcript -Path $OutputDirectory\confluence-cloud-backup-$(Get-Date -Format "yyyyMMdd-HH.mm").log -Append
 }
-if($DebugEnable){
+if($DebugEnable.IsPresent){
     $DebugPreference = "Continue"
     Set-PSDebug -Trace 2
     Write-Debug "Exit codes: 0 = all fine; 1 = Backup creation failed with undefined HTTP status code; 2 = invalid input supplied; 3 = webrequest for download failed; 4 = Backup creation failed; 5 = Backup creation failed with undefined error message; 10 = Backup succeeded but was downgraded to exclude attachments; 401 = Invalid login credentials"
@@ -151,9 +154,6 @@ $apiToken = ConvertTo-SecureString $(Get-Content -Path $ApiTokenFile -TotalCount
 if($Domain -NotLike "*.atlassian.net"){
     $Domain = $Domain + ".atlassian.net"
 }
-if(($DownloadAttachments -ne 'true') -and ($DownloadAttachments -ne 'false')){ # Tells the script whether or not to pull down the attachments as well
-    Write-Error "Invalid input for DownloadAttachments: $DownloadAttachments must be true or false"
-}
 
 $cloud = 'true' # Tells the script whether to export the backup for Cloud or Server
 
@@ -167,7 +167,7 @@ $headers = @{
 
 #Set body
 $body = @{
-          cbAttachments=$DownloadAttachments
+          cbAttachments=$DownloadAttachments.IsPresent ? 'true' : 'false'
           exportToCloud=$cloud
          }
 $bodyjson = $body | ConvertTo-Json
@@ -187,7 +187,7 @@ do {
         Write-Debug "Backup creation successful. HTTP Status Code: $($backupResponse.StatusCode)"
     }
     catch {
-        if($WaitMinutes -eq 0 -or $DownloadAttachments -eq 'false'){
+        if($WaitMinutes -eq 0 -or (-not $DownloadAttachments.IsPresent) ){
             Write-Error "Backup creation failed"
             exit 4
         }

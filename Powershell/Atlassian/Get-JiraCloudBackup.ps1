@@ -26,8 +26,9 @@
         Logon email address associated with the API token.
 
     .PARAMETER DownloadAttachments
-        Whether or not to download attachments. Default is true. Note that as of writing 
-        this script you can only create a with attachments every 48 hours.
+        Switch to include attachments. Note that as of writing this script you can
+        only create a backup with attachments every 48 hours.
+        See: https://jira.atlassian.com/browse/CLOUD-6617
 
     .PARAMETER OutputDirectory
         The directory where the backup will be saved. Default is the current directory.
@@ -44,12 +45,12 @@
         the first attempt to create the backup fails.
 
     .PARAMETER DebugEnable
-        Enable debug output. Default is false. If debug is enabled the transcript will
+        Enable debug output. If debug is enabled the transcript will
         be enabled too.The transcript will be saved in the output directory with the 
         filename jira-cloud-backup-YYYYMMDD-HH.mm.log.
 
     .PARAMETER TranscriptEnable
-        Enable transcript. Default is false. The transcript will be saved in the output
+        Enable transcript. The transcript will be saved in the output
         directory with the filename jira-cloud-backup-YYYYMMDD-HH.mm.log.
 
     .INPUTS
@@ -78,29 +79,27 @@
         only downgrades about once per week (instead of every second time). If you have a 
         better idea, please let me know.
 #>
+
+#Requires -Version 7
+
 Param(
     [Parameter(Mandatory=$True)]
     [string]$ApiTokenFile,
     [Parameter(Mandatory=$True)]
-    [string]$email,
-    [ValidateSet('true', 'false')]
-    [string]$DownloadAttachments = 'true',
-    [string]$OutputDirectory = $(pwd),
+    [string]$Email,
+    [switch]$DownloadAttachments,
+    [string]$OutputDirectory = $(Get-Location),
     [Parameter(Mandatory=$True)]
     [string]$Domain,
     [int]$WaitMinutes = 10,
-    [bool]$DebugEnable = $false,
-    [bool]$TranscriptEnable = $false
+    [switch]$DebugEnable,
+    [switch]$TranscriptEnable
 )
 
-if ($PSVersionTable.PSVersion.Major -lt 7) {
-    throw "Script requires at least PowerShell version 7."
-}
-
-if($DebugEnable -or $TranscriptEnable){
+if($DebugEnable.IsPresent -or $TranscriptEnable.IsPresent){
     Start-Transcript -Path $OutputDirectory\jira-cloud-backup-$(Get-Date -Format "yyyyMMdd-HH.mm").log -Append
 }
-if($DebugEnable){
+if($DebugEnable.IsPresent){
     $DebugPreference = "Continue"
     Set-PSDebug -Trace 2
     Write-Debug "Exit codes: 0 = all fine; 1 = Backup creation failed with undefined HTTP status code; 2 = invalid input supplied; 3 = webrequest for download failed; 4 = Backup creation failed; 5 = Backup creation failed with undefined error message; 10 = Backup succeeded but was downgraded to exclude attachments; 401 = Invalid login credentials"
@@ -156,17 +155,16 @@ $apiToken = ConvertTo-SecureString $(Get-Content -Path $ApiTokenFile -TotalCount
 if($Domain -NotLike "*.atlassian.net"){
     $Domain = $Domain + ".atlassian.net"
 }
-if(($DownloadAttachments -ne 'true') -and ($DownloadAttachments -ne 'false')){ # Tells the script whether or not to pull down the attachments as well
-    Write-Error "Invalid input for DownloadAttachments: $DownloadAttachments must be true or false"
-}
 $cloud = 'true' # Tells the script whether to export the backup for Cloud or Server
 
 $auth = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$($email):$(ConvertFrom-SecureString -SecureString $apiToken -AsPlainText)"))
 
 $body = @{
-    cbAttachments=$DownloadAttachments
+    cbAttachments=$DownloadAttachments.IsPresent ? 'true' : 'false'
     exportToCloud=$cloud
 }
+Write-Host "DownloadAttachments: $($body.cbAttachments), type: $($body.cbAttachments.GetType().Name)"
+pause
 $bodyjson = $body | ConvertTo-Json
 
 # Create header for authentication
@@ -191,7 +189,7 @@ do {
         Write-Debug "Backup creation successful. Task ID: $backupResponse"
     }
     catch {
-        if($timeout -lt 1 -or $DownloadAttachments -eq 'false') {
+        if($timeout -lt 1 -or (-not $DownloadAttachments.IsPresent) ) {
             Write-Error "Backup creation failed" 
             exit 4
         }
@@ -239,7 +237,6 @@ $waitDelay = 10
 # Wait for the backup to be ready
 $progress = 0
 Write-Progress -Id 2 -Activity "Backup in Progress" -Status "$progress% Complete:" -PercentComplete $progress
-$backupReady = $false
 do {
     Write-Debug "We are waiting $waitDelay seconds to check the status of your backup. Current progress: $progress%"
     Start-Sleep -Seconds $waitDelay
