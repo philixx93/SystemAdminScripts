@@ -1,4 +1,3 @@
-
 <#
     .SYNOPSIS
         Lists all discovered apps with versions
@@ -25,11 +24,9 @@
     .EXAMPLE
         N/A
 #>
-
+#Requires -Version 7.0	
 
 $ErrorActionPreference = "Continue"
-##Start Logging to %TEMP%\intune.log
-Start-Transcript -Path $env:TEMP\intune-$(get-date -format yyyyMMddTHHmmssffff).log
 
 Function Open-PSModule {
     [cmdletbinding()]
@@ -115,4 +112,3 @@ while (1) {
     }
     $appslist | Out-GridView -Title "$($selectedApp.DisplayName)" -Wait    
 }
-Stop-Transcript
